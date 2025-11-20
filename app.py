@@ -1,144 +1,169 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from datetime import datetime, date
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+import os
 
-app = Flask(__name__)
-CORS(app) # Permite que o HTML acesse este servidor
 
-# --- "BANCO DE DADOS" EM MEMÓRIA ---
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_PATH = os.path.join(BASE_DIR, "biblioteca.db")
 
-# Coleção de Livros (Começando com alguns dados de exemplo)
-livros = [
-    {'id': 1, 'titulo': 'Dom Quixote', 'autor': 'Miguel de Cervantes', 'isbn': '12345', 'ano': 1605, 'categorias': 'Clássico', 'quantidade': 3},
-    {'id': 2, 'titulo': 'O Pequeno Príncipe', 'autor': 'Saint-Exupéry', 'isbn': '67890', 'ano': 1943, 'categorias': 'Infantil', 'quantidade': 5}
-]
+print("\nBanco de dados usado:")
+print(DB_PATH, "\n")
 
-# Coleção de Usuários
-usuarios = []
+app = Flask(__name__, static_folder="", template_folder="")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Coleção de Empréstimos
-emprestimos = []
+db = SQLAlchemy(app)
+CORS(app)
 
-# --- FUNÇÕES AUXILIARES ---
+class Livro(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String(200), nullable=False)
+    autor = db.Column(db.String(200), nullable=False)
+    isbn = db.Column(db.String(50))
+    ano = db.Column(db.Integer)
+    categorias = db.Column(db.String(200))
+    quantidade = db.Column(db.Integer, default=1)
 
-def gerar_novo_id(colecao):
-    """Retorna um novo ID baseado no último item da lista + 1"""
-    if len(colecao) > 0:
-        return colecao[-1]['id'] + 1
-    return 1
 
-def encontrar_por_id(colecao, id_procurado):
-    """Busca um item dentro de uma lista pelo ID"""
-    for item in colecao:
-        if item['id'] == id_procurado:
-            return item
-    return None
+class Emprestimo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    usuario = db.Column(db.String(200), nullable=False)
+    livro_id = db.Column(db.Integer, db.ForeignKey("livro.id"), nullable=False)
+    data_emprestimo = db.Column(db.String(20))
+    data_prevista = db.Column(db.String(20))
+    devolvido = db.Column(db.Boolean, default=False)
+    data_devolucao = db.Column(db.String(20))
 
-# --- ROTAS (ENDPOINTS) ---
 
-# 1. Rota para LISTAR e CRIAR Livros
-@app.route('/livros', methods=['GET', 'POST'])
-def gerenciar_livros():
-    if request.method == 'GET':
-        return jsonify(livros)
-    
-    if request.method == 'POST':
-        data = request.json or {}
-        # Validação simples
-        if not data.get('titulo') or not data.get('autor'):
-            return jsonify({'error': 'Titulo e Autor são obrigatórios'}), 400
-        
-        novo_livro = {
-            'id': gerar_novo_id(livros),
-            'titulo': data.get('titulo'),
-            'autor': data.get('autor'),
-            'isbn': data.get('isbn', ''),
-            'ano': int(data.get('ano', 0)),
-            'categorias': data.get('categorias', ''),
-            'quantidade': int(data.get('quantidade', 1))
+with app.app_context():
+    db.create_all()
+
+@app.route("/")
+def home():
+    return send_from_directory("", "index.html")
+
+
+@app.route("/<path:filename>")
+def arquivos(filename):
+    return send_from_directory("", filename)
+
+
+@app.route("/livros", methods=["GET"])
+def listar_livros():
+    livros = Livro.query.all()
+    return jsonify([
+        {
+            "id": l.id,
+            "titulo": l.titulo,
+            "autor": l.autor,
+            "isbn": l.isbn,
+            "ano": l.ano,
+            "categorias": l.categorias,
+            "quantidade": l.quantidade
         }
-        livros.append(novo_livro)
-        return jsonify(novo_livro), 201
+        for l in livros
+    ])
 
-# 2. Rota para CRIAR Usuários
-@app.route('/usuarios', methods=['POST'])
-def criar_usuario():
+
+@app.route("/livros", methods=["POST"])
+def cadastrar_livro():
     data = request.json or {}
-    if not data.get('nome'):
-        return jsonify({'error': 'Nome é obrigatório'}), 400
 
-    novo_usuario = {
-        'id': gerar_novo_id(usuarios),
-        'nome': data.get('nome'),
-        'email': data.get('email', ''),
-        'telefone': data.get('telefone', '')
-    }
-    usuarios.append(novo_usuario)
-    return jsonify(novo_usuario), 201
+    if not data.get("titulo") or not data.get("autor"):
+        return jsonify({"error": "Título e autor são obrigatórios"}), 400
 
-# 3. Rota para EMPRÉSTIMOS
-@app.route('/emprestimos', methods=['GET', 'POST'])
-def gerenciar_emprestimos():
-    if request.method == 'GET':
-        return jsonify(emprestimos)
+    # Aceita tanto quantidade_total (frontend) quanto quantidade
+    quantidade = data.get("quantidade_total") or data.get("quantidade") or 1
 
-    if request.method == 'POST':
-        data = request.json or {}
-        try:
-            usuario_id = int(data.get('usuario')) # O HTML envia como 'usuario'
-            livro_id = int(data.get('livro'))     # O HTML envia como 'livro'
-            data_prevista = data.get('data_prevista')
-        except (ValueError, TypeError):
-             return jsonify({'error': 'IDs inválidos'}), 400
+    livro = Livro(
+        titulo=data["titulo"],
+        autor=data["autor"],
+        isbn=data.get("isbn", ""),
+        ano=int(data.get("ano", 0)),
+        categorias=data.get("categorias", ""),
+        quantidade=int(quantidade)
+    )
 
-        # Verifica se livro e usuário existem na memória
-        livro = encontrar_por_id(livros, livro_id)
-        usuario = encontrar_por_id(usuarios, usuario_id) # Aqui precisaria ter usuários cadastrados antes
+    db.session.add(livro)
+    db.session.commit()
 
-        # Para facilitar o teste, se não achar o usuário, cria um "falso" na hora ou aceita sem validar
-        # Mas o ideal é validar:
-        if not livro:
-            return jsonify({'error': 'Livro não encontrado'}), 404
-        
-        if livro['quantidade'] <= 0:
-            return jsonify({'error': 'Livro sem estoque'}), 400
+    return jsonify({"message": "Livro cadastrado com sucesso", "id": livro.id}), 201
 
-        # Decrementa estoque
-        livro['quantidade'] -= 1
 
-        novo_emprestimo = {
-            'id': gerar_novo_id(emprestimos),
-            'usuario_id': usuario_id,
-            'livro_id': livro_id,
-            'data_emprestimo': datetime.now().strftime('%Y-%m-%d'),
-            'data_prevista': data_prevista,
-            'devolvido': False,
-            'data_devolucao': None
+@app.route("/emprestimos", methods=["GET"])
+def listar_emprestimos():
+    lista = Emprestimo.query.all()
+    return jsonify([
+        {
+            "id": e.id,
+            "usuario": e.usuario,
+            "livro_id": e.livro_id,
+            "data_emprestimo": e.data_emprestimo,
+            "data_prevista": e.data_prevista,
+            "devolvido": e.devolvido,
+            "data_devolucao": e.data_devolucao
         }
-        emprestimos.append(novo_emprestimo)
-        return jsonify(novo_emprestimo), 201
+        for e in lista
+    ])
 
-# 4. Rota para DEVOLUÇÃO
-@app.route('/devolucoes/<int:emprestimo_id>', methods=['POST'])
-def devolver(emprestimo_id):
-    emprestimo = encontrar_por_id(emprestimos, emprestimo_id)
-    
-    if not emprestimo:
-        return jsonify({'error': 'Emprestimo não encontrado'}), 404
-    
-    if emprestimo['devolvido']:
-        return jsonify({'error': 'Este empréstimo já foi devolvido'}), 400
 
-    # Marca como devolvido
-    emprestimo['devolvido'] = True
-    emprestimo['data_devolucao'] = datetime.now().strftime('%Y-%m-%d')
+@app.route("/emprestimos", methods=["POST"])
+def registrar_emprestimo():
+    data = request.json or {}
 
-    # Devolve o estoque do livro
-    livro = encontrar_por_id(livros, emprestimo['livro_id'])
-    if livro:
-        livro['quantidade'] += 1
+    usuario = data.get("usuario")
+    livro_id = data.get("livro")
 
-    return jsonify(emprestimo), 200
+    if not usuario or not livro_id:
+        return jsonify({"error": "Usuário e Livro são obrigatórios"}), 400
 
-if __name__ == '__main__':
+    livro = Livro.query.get(livro_id)
+    if not livro:
+        return jsonify({"error": "Livro não encontrado"}), 404
+
+    if livro.quantidade <= 0:
+        return jsonify({"error": "Livro sem estoque disponível"}), 400
+
+    # reduz estoque
+    livro.quantidade -= 1
+
+    emprestimo = Emprestimo(
+        usuario=usuario,
+        livro_id=livro_id,
+        data_emprestimo=datetime.now().strftime("%Y-%m-%d"),
+        data_prevista=data.get("data_prevista"),
+        devolvido=False
+    )
+
+    db.session.add(emprestimo)
+    db.session.commit()
+
+    return jsonify({"message": "Empréstimo registrado com sucesso"}), 201
+
+
+@app.route("/devolucao/<int:id>", methods=["POST"])
+def devolver_livro(id):
+    e = Emprestimo.query.get(id)
+
+    if not e:
+        return jsonify({"error": "Empréstimo não encontrado"}), 404
+
+    if e.devolvido:
+        return jsonify({"error": "Livro já devolvido"}), 400
+
+    e.devolvido = True
+    e.data_devolucao = datetime.now().strftime("%Y-%m-%d")
+
+    livro = Livro.query.get(e.livro_id)
+    livro.quantidade += 1
+
+    db.session.commit()
+
+    return jsonify({"message": "Devolução concluída com sucesso"})
+
+
+if __name__ == "__main__":
     app.run(debug=True, port=5000)
