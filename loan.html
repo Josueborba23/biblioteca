@@ -20,5 +20,35 @@
     </form>
   </main>
   <footer class="footer">&copy; Biblioteca</footer>
+
+<script>
+document.getElementById("loan-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const usuario = e.target.usuario.value.trim();
+    const livro = e.target.livro.value.trim();
+    const data_prevista = e.target.data_prevista.value;
+
+    const payload = { usuario, livro, data_prevista };
+
+    console.log("Enviando:", payload);
+
+    const resp = await fetch("/emprestimos", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    const dados = await resp.json();
+
+    if (resp.ok) {
+        alert("Empréstimo registrado com sucesso!");
+        e.target.reset();
+    } else {
+        alert("Erro: " + dados.error);
+    }
+});
+</script>
+
 </body>
 </html>
