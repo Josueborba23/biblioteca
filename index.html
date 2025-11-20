@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Biblioteca - Lista de Livros</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Biblioteca Municipal</h1>
+    <nav>
+      <a href="index.html">Livros</a>
+      <a href="book_form.html">Novo Livro</a>
+      <a href="loan.html">Empréstimos</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="search-bar">
+      <input placeholder="Buscar por título, autor ou ISBN" />
+      <button>Buscar</button>
+    </section>
+
+    <section class="book-list">
+      <table>
+        <thead>
+          <tr><th>Título</th><th>Autor</th><th>Ano</th><th>Disponível</th><th>Ações</th></tr>
+        </thead>
+        <tbody>
+          <!-- linhas dinâmicas -->
+          <tr>
+            <td>Exemplo de Livro A</td>
+            <td>Autor X</td>
+            <td>2010</td>
+            <td>3</td>
+            <td>
+              <button>Editar</button>
+              <button class="btn-ex">Excluir</button>
+              <button>Emprestar</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="footer">&copy; Biblioteca - 2025</footer>
+  <script>
+    // Função que vai buscar os livros no Python
+    async function carregarLivros() {
+        try {
+            const resposta = await fetch('http://127.0.0.1:5000/livros');
+            const livros = await resposta.json();
+            
+            const tbody = document.querySelector('tbody');
+            tbody.innerHTML = ''; // Limpa a tabela antes de preencher
+
+            livros.forEach(livro => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${livro.titulo}</td>
+                    <td>${livro.autor}</td>
+                    <td>${livro.ano}</td>
+                    <td>${livro.quantidade}</td>
+                    <td>
+                        <button>Editar</button>
+                        <button class="btn-ex">Excluir</button>
+                        <button>Emprestar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (erro) {
+            console.error('Erro ao carregar livros:', erro);
+        }
+    }
+
+    // Carrega a lista assim que a página abre
+    window.onload = carregarLivros;
+</script>
+</body>
+</html>

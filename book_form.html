@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cadastrar Livro</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar"><h1>Cadastrar / Editar Livro</h1></header>
+  <main class="container form-container">
+    <form id="book-form">
+      <label>Título<input required name="titulo" /></label>
+      <label>Autor<input required name="autor" /></label>
+      <label>ISBN<input name="isbn" /></label>
+      <label>Ano<input type="number" name="ano" /></label>
+      <label>Categorias<input name="categorias" placeholder="separe por vírgula"/></label>
+      <label>Quantidade<input type="number" name="quantidade_total" min="1" value="1"/></label>
+      <div class="actions">
+        <button type="submit">Salvar</button>
+        <a href="index.html" class="btn-cancel">Cancelar</a>
+      </div>
+    </form>
+  </main>
+  <footer class="footer">&copy; Biblioteca</footer>
+</body>
+</html>
